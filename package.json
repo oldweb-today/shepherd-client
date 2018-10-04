@@ -1,11 +1,12 @@
 {
-  "name": "shepherd",
+  "name": "shepherd-controller",
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "build": "webpack",
-    "build-dev": "webpack --watch",
-    "build-docker": "webpack --config webpack.docker.config.js"
+    "build": "babel src -d lib",
+    "bundle": "webpack",
+    "build-docker": "webpack --config webpack.docker.config.js",
+    "prepare": "npm run build"
   },
   "dependencies": {
     "@novnc/novnc": "^1.0.0",
@@ -13,6 +14,9 @@
     "unfetch": "^4.0.1"
   },
   "devDependencies": {
+    "babel-preset-env": "^1.7.0",
+    "babel": "^6.23.0",
+    "babel-cli": "^6.26.0",
     "webpack": "^4.17.2",
     "webpack-cli": "^3.1.0"
   }
