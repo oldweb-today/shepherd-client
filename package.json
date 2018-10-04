@@ -1,0 +1,19 @@
+{
+  "name": "shepherd",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "build": "webpack",
+    "build-dev": "webpack --watch",
+    "build-docker": "webpack --config webpack.docker.config.js"
+  },
+  "dependencies": {
+    "@novnc/novnc": "^1.0.0",
+    "promise-polyfill": "^8.1.0",
+    "unfetch": "^4.0.1"
+  },
+  "devDependencies": {
+    "webpack": "^4.17.2",
+    "webpack-cli": "^3.1.0"
+  }
+}
