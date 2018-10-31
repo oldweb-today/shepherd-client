@@ -3,6 +3,6 @@ module.exports = {
   entry: './index.js',
   output: {
     path: '/output',
-    filename: 'shepherd.bundle.js'
+    filename: 'shepherd-client.bundle.js'
   }
 };

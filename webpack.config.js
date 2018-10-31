@@ -5,6 +5,6 @@ module.exports = {
   entry: './src/browser.js',
   output: {
     path: path.resolve(__dirname, 'dist'),
-    filename: 'shepherd.bundle.js'
+    filename: 'shepherd-client.bundle.js'
   }
 };
