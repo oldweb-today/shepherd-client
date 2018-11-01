@@ -77,14 +77,19 @@ export default function CBrowser(reqid, target_div, init_params) {
     setup_browser();
   }
 
-  function clipHandler(evt) {
+  function clipHandler(e) {
     if (!hasClipboard) {
       return false;
     }
 
-    var text = evt.clipboardData.getData('Text');
+    var text;
+    if (window.clipboardData && window.clipboardData.getData) { // ie
+      text = window.clipboardData.getData('text/plain');
+    } else if (e.clipboardData && e.clipboardData.getData) {
+      text = e.clipboardData.getData('Text');
+    }
 
-    if (connected && rfb) {
+    if (connected && rfb && text) {
       rfb.clipboardPasteFrom(text);
 
       // attempt sending paste command
