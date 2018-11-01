@@ -84,9 +84,9 @@ export default function CBrowser(reqid, target_div, init_params) {
 
     var text;
     if (window.clipboardData && window.clipboardData.getData) { // ie
-      text = window.clipboardData.getData('text/plain');
+      text = window.clipboardData.getData('Text');
     } else if (e.clipboardData && e.clipboardData.getData) {
-      text = e.clipboardData.getData('Text');
+      text = e.clipboardData.getData('text/plain');
     }
 
     if (connected && rfb && text) {
