@@ -226,7 +226,7 @@ export default function CBrowser(reqid, target_div, init_params) {
     fetch(init_url, options)
       .then(function (res) {
         if (!res.ok) {
-          throw Error({ status: res.status });
+          throw new Error({ status: res.status });
         }
 
         return res.json();
