@@ -226,7 +226,7 @@ export default function CBrowser(reqid, target_div, init_params) {
     fetch(init_url, options)
       .then(function (res) {
         if (!res.ok) {
-          throw new Error({ status: res.status });
+          throw new Error(res.status);
         }
 
         return res.json();
@@ -240,11 +240,11 @@ export default function CBrowser(reqid, target_div, init_params) {
         waiting_for_container = false;
 
         // user canceled
-        if (err.name === 'AbortError') {
+        if (err.message === 'AbortError') {
           return;
         }
 
-        if (!err || err.status != 404) {
+        if (!err || err.message != 404) {
           msgdiv().innerHTML = 'Reconnecting to Remote Browser...';
           msgdiv().style.display = 'block';
 
@@ -254,12 +254,6 @@ export default function CBrowser(reqid, target_div, init_params) {
 
           return;
         }
-
-        // Scalar specific code
-        // if (err.status == 404) {
-        //   msgdiv().innerHTML = "No Such Browser";
-        //   return;
-        // }
 
         if (init_params.on_event) {
           init_params.on_event('expire');
