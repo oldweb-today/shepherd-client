@@ -255,10 +255,11 @@ export default function CBrowser(reqid, target_div, init_params) {
           return;
         }
 
-        if (err.status == 404) {
-          msgdiv().innerHTML = "No Such Browser";
-          return;
-        }
+        // Scalar specific code
+        // if (err.status == 404) {
+        //   msgdiv().innerHTML = "No Such Browser";
+        //   return;
+        // }
 
         if (init_params.on_event) {
           init_params.on_event('expire');
