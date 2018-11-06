@@ -1,7 +1,7 @@
 import 'unfetch/polyfill/index';
 import RFB from '@novnc/novnc/core/rfb';
 import Promise from 'promise-polyfill';
-import { WSAudio, getBestAudioType } from './audio';
+import { WSAudio, getBestAudioType } from './audio-mediasource';
 
 
 function toQueryString(obj) {
