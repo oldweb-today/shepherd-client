@@ -2,9 +2,10 @@ const path = require('path');
 
 module.exports = {
   mode: 'production',
-  entry: './src/browser.js',
+  entry: './index.js',
   output: {
     path: path.resolve(__dirname, 'dist'),
-    filename: 'shepherd-client.bundle.js'
+    filename: 'shepherd-client.bundle.js',
+    libraryTarget: 'window'
   }
 };
