@@ -35,8 +35,8 @@ export default function CBrowser(reqid, target_div, init_params) {
   var stagedText = null;
   var timers = []
 
-  var min_width = 800;
-  var min_height = 600;
+  var min_width = 300;
+  var min_height = 300;
 
   var rfb;
   var resizeTimeout;
