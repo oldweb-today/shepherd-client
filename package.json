@@ -6,7 +6,7 @@
     "build": "babel src -d lib",
     "bundle": "webpack",
     "build-docker": "webpack --config webpack.docker.config.js",
-    "prepare": "npm run build"
+    "prepare": "npm run build; npm run bundle"
   },
   "dependencies": {
     "@novnc/novnc": "^1.0.0",

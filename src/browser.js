@@ -279,7 +279,7 @@ export default function CBrowser(reqid, target_div, init_params) {
         // setup_browser can be called many times (specially when noVnc thrown an exception), we stop sound before init again
         if (window.audioPlugin) {
           try {
-            window.audioPlugin.stop();
+            window.audioPlugin.close();
             window.audioPlugin = undefined;
           } catch (err){}
         }
@@ -542,6 +542,14 @@ export default function CBrowser(reqid, target_div, init_params) {
     if (controller) {
       // cancel fetch requests
       controller.abort();
+    }
+
+    // stop audio plugin
+    if (init_params.audio) {
+      try {
+        window.audioPlugin.close();
+        window.audioPlugin = undefined;
+      } catch (err){}
     }
 
     if (rfb) {
