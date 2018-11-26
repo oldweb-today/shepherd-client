@@ -2,6 +2,7 @@ import 'unfetch/polyfill/index';
 import RFB from '@novnc/novnc/core/rfb';
 import Promise from 'promise-polyfill';
 import { WSAudio, getBestAudioType } from './audio-mediasource';
+import { WebRTCAudio } from './audio-webrtc'
 
 
 function toQueryString(obj) {
@@ -277,14 +278,26 @@ export default function CBrowser(reqid, target_div, init_params) {
 
       if (init_params.audio) {
         // setup_browser can be called many times (specially when noVnc thrown an exception), we stop sound before init again
-        if (window.audioPlugin) {
+        if (window.audioPlugin && window.audioPlugin.hasOwnProperty("stop")) {
           try {
-            window.audioPlugin.close();
+            window.audioPlugin.stop();
             window.audioPlugin = undefined;
-          } catch (err){}
+          } catch (err){
+            console.log("Fail during window.audio.stop()");
+          }
         }
         if (data.audio) {
-          window.audioPlugin = new WSAudio(data, init_params);
+          if (window.location.href.indexOf("webrtc")) {         // @todo CHANGE ME quick&dirty hack
+            console.log("webRTC: init plugin");
+            var webrtc_data = {};
+            webrtc_data.webrtc_stun_server = "stun:stun.l.google.com:19302";
+            webrtc_data.cmd_port = cmd_port;
+
+            window.audioPlugin = new WebRTCAudio("1", webrtc_data)
+          } else {
+            console.log("WSAudio: init plugin");
+            window.audioPlugin = new WSAudio(data, init_params);
+          }
 
           if (data.audio == "wait_for_click") {
             // activate audio on first click
