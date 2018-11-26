@@ -165,8 +165,8 @@ function WebRTCAudio(peer_id, data) {
 
   }
 
-  this.stop = function() {
-    console.log("Stopping WebRTC audio connection");
+  this.close = function() {
+    console.log("Closing WebRTC audio connection");
     disconnectWebsocket();
   };
 
