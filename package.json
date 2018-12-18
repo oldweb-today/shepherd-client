@@ -3,10 +3,11 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "build": "babel src -d lib",
-    "bundle": "webpack",
-    "build-docker": "webpack --config webpack.docker.config.js",
-    "prepare": "npm run build; npm run bundle"
+    "compile": "babel src -d lib",
+    "build": "webpack --mode production",
+    "build-dev": "webpack --mode development",
+    "bundle": "npm run compile; npm run build",
+    "bundle-dev": "npm run compile; npm run build-dev"
   },
   "dependencies": {
     "@novnc/novnc": "^1.0.0",

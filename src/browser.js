@@ -286,10 +286,15 @@ export default function CBrowser(reqid, target_div, init_params) {
         if (data.audio) {
           window.audioPlugin = new WSAudio(data, init_params);
 
-          // activate audio on first click
-          document.body.addEventListener('click', function () {
+          if (data.audio == "wait_for_click") {
+            // activate audio on first click
+            document.body.addEventListener('click', function () {
+              window.audioPlugin.start();
+            }, { once: true });
+          } else {
+            // start right away -- may be muted on latest Chrome until click
             window.audioPlugin.start();
-          }, { once: true });
+          }
         }
       }
 

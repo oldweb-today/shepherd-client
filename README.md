@@ -39,6 +39,9 @@ yarn run build
 yarn run bundle
 ```
 
+(To build debug-friendly bundle run `yarn run bundle-dev`)
+
+
 ### Importing Module
 
 To embed a remote/containerized browser into an existing application,
