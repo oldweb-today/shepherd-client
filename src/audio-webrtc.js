@@ -49,8 +49,17 @@ function WebRTCAudio(peer_id, data) {
 
   function getSignallingServer() {
     let ws_url = (window.location.protocol === "https:" ? "wss://" : "ws://");
-    ws_url += window.location.hostname + ":" + data.cmd_port;
-    return ws_url
+    ws_url += window.location.hostname;
+
+    var audio_port = data.cmd_port;
+
+    if (data.proxy_ws) {
+      ws_url += "/" + data.proxy_ws + audio_port;
+    } else {
+      ws_url += ":" + audio_port + "/audio_ws";
+    }
+
+    return ws_url;
   }
 
   function onServerError() {
@@ -71,6 +80,7 @@ function WebRTCAudio(peer_id, data) {
     switch (event.data) {
       case "HELLO":
         setStatus("Registered with server, waiting for call");
+        ws_conn.send('PORT ' + data.ice_tcp_port + ' ' + data.ice_udp_port);
         return;
       default:
         if (event.data.startsWith("ERROR")) {
