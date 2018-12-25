@@ -2,7 +2,7 @@ import 'unfetch/polyfill/index';
 import RFB from '@novnc/novnc/core/rfb';
 import Promise from 'promise-polyfill';
 import { WSAudio, getBestAudioType } from './audio-mediasource';
-import { WebRTCAudio } from './audio-webrtc'
+import { WebRTCAudio } from './audio-webrtc';
 
 
 function toQueryString(obj) {
@@ -287,11 +287,15 @@ export default function CBrowser(reqid, target_div, init_params) {
           }
         }
         if (data.audio) {
-          if (window.location.href.indexOf("webrtc")) {         // @todo CHANGE ME quick&dirty hack
+          // for now, check if webrtc set in init params
+          if (init_params.webrtc) {
             console.log("webRTC: init plugin");
             var webrtc_data = {};
-            webrtc_data.webrtc_stun_server = "stun:stun.l.google.com:19302";
+            //webrtc_data.webrtc_stun_server = "stun:stun.l.google.com:19302";
             webrtc_data.cmd_port = cmd_port;
+            webrtc_data.ice_tcp_port = data.ice_tcp_port;
+            webrtc_data.ice_udp_port = data.ice_udp_port;
+            webrtc_data.proxy_ws = init_params.proxy_ws;
 
             window.audioPlugin = new WebRTCAudio("1", webrtc_data)
           } else {
@@ -299,7 +303,7 @@ export default function CBrowser(reqid, target_div, init_params) {
             window.audioPlugin = new WSAudio(data, init_params);
           }
 
-          if (data.audio == "wait_for_click") {
+          if (init_params.audio == "wait_for_click") {
             // activate audio on first click
             document.body.addEventListener('click', function () {
               window.audioPlugin.start();
