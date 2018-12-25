@@ -10,6 +10,10 @@ function WebRTCAudio(peer_id, data) {
   let ws_conn;
 
   this.start = function() {
+    if (audio) {
+      console.log("already started");
+      return;
+    }
     audio = new Audio();
     audio.autoplay = true;
     audio.play().catch(setError);

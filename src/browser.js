@@ -299,7 +299,7 @@ export default function CBrowser(reqid, target_div, init_params) {
             window.audioPlugin = new WSAudio(data, init_params);
           }
 
-          if (data.audio == "wait_for_click") {
+          if (init_params.audio == "wait_for_click") {
             // activate audio on first click
             document.body.addEventListener('click', function () {
               window.audioPlugin.start();
