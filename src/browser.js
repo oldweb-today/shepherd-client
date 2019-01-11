@@ -45,6 +45,9 @@ export default function CBrowser(reqid, target_div, init_params) {
 
   var end_time = undefined;
 
+  var environ = {};
+  var audioType = null;
+
   var targetDivNode = document.querySelector(target_div);
 
   var waiting_for_container = false;
@@ -55,8 +58,6 @@ export default function CBrowser(reqid, target_div, init_params) {
   init_params.api_prefix = init_params.api_prefix || "";
 
   var num_vnc_retries = init_params.num_vnc_retries || 3;
-
-  var req_params = {};
 
   // rfb event callbacks
   var credentialsRequired;
@@ -192,20 +193,25 @@ export default function CBrowser(reqid, target_div, init_params) {
       min_height = t;
     }
 
-    req_params['width'] = Math.max(w, min_width);
-    req_params['height'] = Math.max(h, min_height);
-    req_params['width'] = parseInt(req_params['width'] / 8) * 8;
-    req_params['height'] = parseInt(req_params['height'] / 8) * 8;
+    let width = Math.max(w, min_width);
+    let height = Math.max(h, min_height);
+    width = parseInt(width / 8) * 8;
+    height = parseInt(height / 8) * 8;
+    //req_params['reqid'] = reqid;
 
-    req_params['reqid'] = reqid;
+    audioType = getBestAudioType();
 
-    req_params["audio"] = getBestAudioType();
-
-    if (!req_params["audio"]) {
+    if (!audioType) {
       console.log("No Supported Audio Types");
     }
 
-    init_browser();
+    environ = {'SCREEN_WIDTH': width,
+               'SCREEN_HEIGHT': height,
+               'AUDIO_TYPE': audioType,
+               'REQ_ID': reqid
+              };
+
+    init_browser()
   }
 
   function init_browser() {
@@ -215,9 +221,18 @@ export default function CBrowser(reqid, target_div, init_params) {
 
     waiting_for_container = true;
 
-    var init_url = init_params.api_prefix + "/init_browser?" + toQueryString(req_params);
+    //var init_url = init_params.api_prefix + "/init_browser?" + toQueryString(req_params);
+    var init_url = init_params.api_prefix + "/api/start_flock/" + reqid;
 
-    var options = { headers: new Headers(init_params.headers || {}) };
+    var req_params = {"environ": environ};
+
+    var headers = init_params.headers || {};
+    headers['Content-Type'] = 'application/json';
+
+    var options = { headers: new Headers(headers),
+                    method: "POST",
+                    body: JSON.stringify(req_params),
+                  };
 
     if (controller) {
       options.signal = controller.signal;
@@ -249,7 +264,7 @@ export default function CBrowser(reqid, target_div, init_params) {
           msgdiv().innerHTML = 'Reconnecting to Remote Browser...';
           msgdiv().style.display = 'block';
 
-          if(retryCount++ < maxRetry) {
+          if (retryCount++ < maxRetry) {
             timers.push(setTimeout(init_browser, 1000));
           }
 
@@ -257,7 +272,7 @@ export default function CBrowser(reqid, target_div, init_params) {
         }
 
         if (init_params.on_event) {
-          init_params.on_event('expire');
+          init_params.on_event('error');
         } else {
           msgdiv().innerHTML = 'Remote Browser Expired... Please try again...';
           msgdiv().style.display = 'block';
@@ -266,41 +281,34 @@ export default function CBrowser(reqid, target_div, init_params) {
   }
 
   function handle_browser_response(data) {
-    var qid = data.id;
+    
+    if (data.containers && data.containers.xserver && data.containers.xserver.ports) {
+      let ports = data.containers.xserver.ports;
 
-    if (data.cmd_port && data.vnc_port) {
-      cmd_port = data.cmd_port;
-      vnc_port = data.vnc_port;
+      vnc_port = ports.vnc_port;
+      cmd_port = ports.cmd_port;
 
       end_time = parseInt(Date.now() / 1000, 10) + data.ttl;
 
-      vnc_pass = data.vnc_pass;
+      vnc_pass = data.containers.xserver.environ.VNC_PASS;
 
-      if (init_params.audio) {
-        // setup_browser can be called many times (specially when noVnc thrown an exception), we stop sound before init again
-        if (window.audioPlugin && window.audioPlugin.hasOwnProperty("close")) {
-          try {
-            window.audioPlugin.close();
-            window.audioPlugin = undefined;
-          } catch (err){
-            console.log("Fail during window.audio.close()");
-          }
-        }
-        if (data.audio) {
+      if (init_params.audio && !window.audioPlugin) {
+        if (audioType) {
           // for now, check if webrtc set in init params
           if (init_params.webrtc) {
             console.log("webRTC: init plugin");
             var webrtc_data = {};
+
+            webrtc_data.ports = ports;
             //webrtc_data.webrtc_stun_server = "stun:stun.l.google.com:19302";
-            webrtc_data.cmd_port = cmd_port;
-            webrtc_data.ice_tcp_port = data.ice_tcp_port;
-            webrtc_data.ice_udp_port = data.ice_udp_port;
             webrtc_data.proxy_ws = init_params.proxy_ws;
+            webrtc_data.webrtcHostIP = init_params.webrtcHostIP;
 
             window.audioPlugin = new WebRTCAudio("1", webrtc_data)
           } else {
             console.log("WSAudio: init plugin");
-            window.audioPlugin = new WSAudio(data, init_params);
+            window.audioPlugin = new WSAudio({"audio": audioType,
+                                              "cmd_port": ports.cmd_port}, init_params);
           }
 
           if (init_params.audio == "wait_for_click") {
@@ -567,8 +575,9 @@ export default function CBrowser(reqid, target_div, init_params) {
     }
 
     // stop audio plugin
-    if (init_params.audio) {
+    if (window.audioPlugin) {
       try {
+        console.log("Close Audio");
         window.audioPlugin.close();
         window.audioPlugin = undefined;
       } catch (err){}

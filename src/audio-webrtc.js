@@ -4,19 +4,38 @@ export {WebRTCAudio};
 function WebRTCAudio(peer_id, data) {
 
   let debug = true;
+  let serverReflx = true;
   let audio = null;
   let connect_attempts = 0;
   let peer_connection;
   let ws_conn;
+
+  let cand_count = 1;
+  let LOCAL_PORT = 10235;
+
+  let remote_ips = [];
+
+  // setup possible remote ips based on hostname or specified IP
+  if (data.webrtcHostIP) {
+    remote_ips.push(data.webrtcHostIP);
+  }
+
+  getLocalIPs();
+
+  if (!remote_ips.includes(window.location.hostname)) {
+    remote_ips.push(window.location.hostname);
+  }
 
   this.start = function() {
     if (audio) {
       console.log("already started");
       return;
     }
+
     audio = new Audio();
     audio.autoplay = true;
-    audio.play().catch(setError);
+    audio.play().catch(() => setError("audio.play() error"));
+
     connectToSignalingServer();
   };
 
@@ -51,7 +70,7 @@ function WebRTCAudio(peer_id, data) {
     let ws_url = (window.location.protocol === "https:" ? "wss://" : "ws://");
     ws_url += window.location.hostname;
 
-    var audio_port = data.cmd_port;
+    var audio_port = data.ports.cmd_port;
 
     if (data.proxy_ws) {
       ws_url += "/" + data.proxy_ws + audio_port;
@@ -69,7 +88,9 @@ function WebRTCAudio(peer_id, data) {
   }
 
   function handleIncomingError(message) {
-    console.log("handleIncomingError" + message);
+    if (debug) {
+      console.log("handleIncomingError: " + message);
+    }
   }
 
   function onServerMessage(event) {
@@ -80,7 +101,6 @@ function WebRTCAudio(peer_id, data) {
     switch (event.data) {
       case "HELLO":
         setStatus("Registered with server, waiting for call");
-        ws_conn.send('PORT ' + data.ice_tcp_port + ' ' + data.ice_udp_port);
         return;
       default:
         if (event.data.startsWith("ERROR")) {
@@ -113,10 +133,82 @@ function WebRTCAudio(peer_id, data) {
     }
   }
 
+  function getLocalIPs() {
+    if (window.location.hostname != "localhost" &&
+        window.location.hostname != "127.0.0.1") {
+      return;
+    }
+
+    var pc = new RTCPeerConnection({iceServers: []});
+    pc.createDataChannel("");
+    pc.onicecandidate = function(ice) {
+      if (!ice || !ice.candidate || !ice.candidate.candidate) {
+        pc.close();
+        return;
+      }
+
+      var parts = ice.candidate.candidate.split(" ");
+      if (!remote_ips.includes(parts[4])) {
+        if (debug) {
+          console.log("Detected Local IP: " + parts[4]);
+        }
+        remote_ips.push(parts[4]);
+      }
+    }
+
+    pc.createOffer({offerToReceiveAudio: false, offerToReceiveVideo: false}).then(function(ice) {
+      pc.setLocalDescription(ice);
+    });
+  }
+
+  function buildIceCandidate(parts, ice, hostIP) {
+    parts[0] = "candidate:" + (cand_count++);
+    parts[4] = hostIP;
+
+    if (serverReflx) {
+      parts[7] = "srflx";
+      parts.splice(8, 0, "raddr", hostIP, "rport", parts[5]);
+    }
+
+    ice.candidate = parts.join(" ");
+
+    if (debug) {
+      console.log(JSON.stringify(ice));
+    }
+
+    let candidate = new RTCIceCandidate(ice);
+    peer_connection.addIceCandidate(candidate).catch(() => setError("Error adding ice candidate"));
+  }
+
   // ICE candidate received from peer, add it to the peer connection
   function onIncomingICE(ice) {
-    let candidate = new RTCIceCandidate(ice);
-    peer_connection.addIceCandidate(candidate).catch(setError);
+    var parts = ice.candidate.split(" ");
+
+    if (parts[1] == "2") {
+      // skipping rtcp
+      return;
+    }
+
+    if (parts[5] != LOCAL_PORT) {
+      return;
+    }
+
+    if (parts[2] == "TCP") {
+      parts[5] = data.ports.ice_tcp_port;
+    } else {
+      parts[5] = data.ports.ice_udp_port;
+    }
+
+    if (debug) {
+      console.log("Remote IPs: " + JSON.stringify(remote_ips));
+    }
+
+    // iterate through all known remote ips
+    remote_ips.forEach(function(ip) {
+      buildIceCandidate(parts, ice, ip);
+      // lower priority for each additional candidate
+      parts[3] = (parseInt(parts[3]) - 1) + "";
+    });
   }
 
   function onServerClose(event) {
@@ -142,7 +234,9 @@ function WebRTCAudio(peer_id, data) {
   }
 
   function setError(error) {
-    console.log("WebRTC-error: " + error);
+    if (debug) {
+      console.log("WebRTC-error: " + error);
+    }
   }
 
   function onIncomingSDP(sdp) {
@@ -152,8 +246,8 @@ function WebRTCAudio(peer_id, data) {
         return;
       setStatus("Got SDP offer");
       peer_connection.createAnswer()
-        .then(onLocalDescription).catch(setError);
-    }).catch(setError);
+        .then(onLocalDescription).catch(() => setError("Error setting local description"));
+    }).catch(() => setError("Error setting remote description"));
   }
 
   // Local description was set, send it to peer
@@ -180,48 +274,64 @@ function WebRTCAudio(peer_id, data) {
   }
 
   this.close = function() {
-    console.log("Closing WebRTC audio connection");
+    setStatus("Closing WebRTC audio connection");
     disconnectWebsocket();
   };
 
   function disconnectWebsocket() {
     if (ws_conn) {
-      console.log("disconnect websocket");
+      setStatus("disconnect websocket");
       ws_conn.close();
     }
 
     if (peer_connection) {
-      console.log("disconnect peer");
+      setStatus("disconnect peer");
       peer_connection.close();
       peer_connection = null;
     }
   }
 
-  function createCall(msg) {
+  function createCall() {
     // Reset connection attempts because we connected successfully
     connect_attempts = 0;
-
-    console.log('Creating RTCPeerConnection');
-
 
     peer_connection = new RTCPeerConnection(getRtcPeerConfiguration());
     peer_connection.ontrack = onRemoteTrackAdded;
 
     /* Send our video/audio to the other peer */
-    if (!msg.sdp) {
-      console.log("WARNING: First message wasn't an SDP message!?");
-    }
+    //if (!msg.sdp) {
+    //  console.log("WARNING: First message wasn't an SDP message!?");
+    //}
+    let anySent = 0;
 
     peer_connection.onicecandidate = (event) => {
       // We have a candidate, send it to the remote party with the
       // same uuid
-      if (event.candidate == null) {
-        console.log("ICE Candidate was null, done");
-        return;
-      }
-      console.log("send candidate remotely" + event.candidate.candidate);
+      let candidate = event.candidate;
 
-      ws_conn.send(JSON.stringify({'ice': event.candidate}));
+      if (candidate == null) {
+
+        if (anySent) {
+          console.log("Ice Candidates Done, Sent " + anySent);
+          return;
+        }
+
+        console.log("Sending Fake Candidates!");
+        candidate = {"candidate":"candidate:123 1 udp 2113937150 127.0.0.1 9 typ host",
+                     "sdpMLineIndex": 0};
+
+        // udp
+        console.log("send candidate remotely: " + candidate.candidate);
+        ws_conn.send(JSON.stringify({'ice': candidate}));
+        anySent++;
+
+        // and tcp
+        candidate.candidate = "candidate:456 1 tcp 2113937140 127.0.0.1 9 typ host tcptype active";
+      }
+
+      console.log("send candidate remotely: " + candidate.candidate);
+      ws_conn.send(JSON.stringify({'ice': candidate}));
+      anySent++;
     };
 
     setStatus("Created peer connection for call, waiting for SDP");
@@ -247,8 +357,10 @@ function WebRTCAudio(peer_id, data) {
       let server = data["webrtc_stun_server"];
       iceServers.push({"urls": server});
     }
-    console.log("iceservers = %O", iceServers);
 
+    if (debug) {
+      console.log("iceservers = %O", iceServers);
+    }
 
     return {"iceServers": iceServers};
   }
