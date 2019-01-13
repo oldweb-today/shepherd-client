@@ -33,8 +33,9 @@ function WebRTCAudio(peer_id, data) {
     }
 
     audio = new Audio();
+    this.audio = audio;
     audio.autoplay = true;
-    audio.play().catch(() => setError("audio.play() error"));
+    audio.play().catch((err) => setError("audio.play() error: " + err));
 
     connectToSignalingServer();
   };
@@ -137,6 +138,10 @@ function WebRTCAudio(peer_id, data) {
     if (window.location.hostname != "localhost" &&
         window.location.hostname != "127.0.0.1") {
       return;
+    }
+
+    if (!remote_ips.includes("127.0.0.1")) {
+      remote_ips.push("127.0.0.1");
     }
 
     var pc = new RTCPeerConnection({iceServers: []});
@@ -338,7 +343,9 @@ function WebRTCAudio(peer_id, data) {
   }
 
   function onRemoteTrackAdded(event) {
+    setStatus("Adding Track");
     audio.srcObject = event.streams[0];
+    audio.play().catch((err) => setError("audio.play() error: " + err));
   }
 
   function getRtcPeerConfiguration() {
