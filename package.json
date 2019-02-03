@@ -15,10 +15,10 @@
     "unfetch": "^4.0.1"
   },
   "devDependencies": {
-    "babel-preset-env": "^1.7.0",
     "babel": "^6.23.0",
     "babel-cli": "^6.26.0",
-    "webpack": "^4.17.2",
-    "webpack-cli": "^3.1.0"
+    "babel-preset-env": "^1.7.0",
+    "webpack": "^4.29.0",
+    "webpack-cli": "^3.2.1"
   }
 }

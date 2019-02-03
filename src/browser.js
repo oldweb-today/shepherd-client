@@ -199,7 +199,11 @@ export default function CBrowser(reqid, target_div, init_params) {
     height = parseInt(height / 8) * 8;
     //req_params['reqid'] = reqid;
 
-    audioType = getBestAudioType();
+    if (init_params.webrtc) {
+      audioType = 'webrtc';
+    } else {
+      audioType = getBestAudioType();
+    }
 
     if (!audioType) {
       console.log("No Supported Audio Types");
