@@ -1,11 +1,11 @@
-export {WebRTCAudio};
+export {WebRTC};
 
 
-function WebRTCAudio(peer_id, data) {
+function WebRTC(target, peer_id, data) {
 
   let debug = true;
   let serverReflx = true;
-  let audio = null;
+  let media_element = null;
   let connect_attempts = 0;
   let peer_connection;
   let ws_conn;
@@ -27,15 +27,10 @@ function WebRTCAudio(peer_id, data) {
   }
 
   this.start = function() {
-    if (audio) {
+    if (media_element) {
       console.log("already started");
       return;
     }
-
-    audio = new Audio();
-    this.audio = audio;
-    audio.autoplay = true;
-    audio.play().catch((err) => setError("audio.play() error: " + err));
 
     connectToSignalingServer();
   };
@@ -269,9 +264,9 @@ function WebRTCAudio(peer_id, data) {
 
 
   function resetAudio() {
-    // Reset the audio element and stop showing the last received frame
+    // Reset the media_element element and stop showing the last received frame
     try {
-      audio.pause();
+      media_element.pause();
     } catch (e) {
       console.log("resetAudio error " + e);
     }
@@ -343,8 +338,35 @@ function WebRTCAudio(peer_id, data) {
   }
 
   function onRemoteTrackAdded(event) {
+    if (event.streams[0].getVideoTracks().length > 0) {
+      // Full WebRTC
+      this.media_element = document.createElement('video');
+      this.media_element.style.backgroundColor = "red";
+      //videos.style.opacity = "0.5";
+      this.media_element.style.position = "absolute"
+      this.media_element.style.top = "0px";
+      this.media_element.style.left = "0px";
+      this.media_element.style.width = "100%"
+      this.media_element.style.zIndex = "-1";
+
+      this.media_element.contentEditable = true;
+      // Hide real VNC
+      document.getElementsByClassName('canvas')[0].style.opacity = 0;
+      //videos.style.width = "50%";
+
+      target.append(this.media_element);
+    } else {
+      // Only audio
+      this.media_element = new Audio();
+    }
+
+
+
+    this.media_element.autoplay = true;
+    this.media_element.play().catch((err) => setError("media_element.play() error: " + err));
+
     setStatus("Adding Track");
-    audio.srcObject = event.streams[0];
+    this.media_element.srcObject = event.streams[0];
   }
 
   function getRtcPeerConfiguration() {

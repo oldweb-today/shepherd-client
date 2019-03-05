@@ -2,7 +2,7 @@ import 'unfetch/polyfill/index';
 import RFB from '@novnc/novnc/core/rfb';
 import Promise from 'promise-polyfill';
 import { WSAudio, getBestAudioType } from './audio-mediasource';
-import { WebRTCAudio } from './audio-webrtc';
+import { WebRTC } from './webrtc';
 
 
 function toQueryString(obj) {
@@ -308,7 +308,7 @@ export default function CBrowser(reqid, target_div, init_params) {
             webrtc_data.proxy_ws = init_params.proxy_ws;
             webrtc_data.webrtcHostIP = init_params.webrtcHostIP;
 
-            window.audioPlugin = new WebRTCAudio("1", webrtc_data)
+            window.audioPlugin = new WebRTC(targetDivNode,"1", webrtc_data);
           } else {
             console.log("WSAudio: init plugin");
             window.audioPlugin = new WSAudio({"audio": audioType,
