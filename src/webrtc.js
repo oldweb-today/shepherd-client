@@ -5,7 +5,6 @@ function WebRTC(target, peer_id, data) {
 
   let debug = true;
   let serverReflx = true;
-  let media_element = null;
   let connect_attempts = 0;
   let peer_connection;
   let ws_conn;
@@ -14,6 +13,9 @@ function WebRTC(target, peer_id, data) {
   let LOCAL_PORT = 10235;
 
   let remote_ips = [];
+
+  let video_element;
+  let audio_element;
 
   // setup possible remote ips based on hostname or specified IP
   if (data.webrtcHostIP) {
@@ -27,7 +29,7 @@ function WebRTC(target, peer_id, data) {
   }
 
   this.start = function() {
-    if (media_element) {
+    if (video_element || audio_element) {
       console.log("already started");
       return;
     }
@@ -49,7 +51,7 @@ function WebRTC(target, peer_id, data) {
     ws_conn = new WebSocket(ws_url);
     /* When connected, immediately register with the server */
     ws_conn.addEventListener('open', () => {
-      ws_conn.send('HELLO ' + peer_id);
+      ws_conn.send('HELLO ' + peer_id)
       setStatus("Registering with server, peer-id = " + peer_id);
     });
 
@@ -71,7 +73,7 @@ function WebRTC(target, peer_id, data) {
     if (data.proxy_ws) {
       ws_url += "/" + data.proxy_ws + audio_port;
     } else {
-      ws_url += ":" + audio_port + "/audio_ws";
+      ws_url += ":" + audio_port + "/";
     }
 
     return ws_url;
@@ -213,7 +215,7 @@ function WebRTC(target, peer_id, data) {
 
   function onServerClose(event) {
     setStatus('Disconnected from server with code=' + event.code + ' reason=' + event.reason);
-    resetAudio();
+    reset();
     disconnectWebsocket();
 
     if (event.code !== 1002) {
@@ -247,7 +249,7 @@ function WebRTC(target, peer_id, data) {
       setStatus("Got SDP offer");
       peer_connection.createAnswer()
         .then(onLocalDescription).catch(() => setError("Error setting local description"));
-    }).catch(() => setError("Error setting remote description"));
+    }).catch((event) => setError("Error setting remote description:" + event));
   }
 
   // Local description was set, send it to peer
@@ -263,12 +265,19 @@ function WebRTC(target, peer_id, data) {
   }
 
 
-  function resetAudio() {
+  function reset() {
     // Reset the media_element element and stop showing the last received frame
     try {
-      media_element.pause();
+
+      if (video_element) {
+        video_element.pause();
+      }
+      if (audio_element) {
+        audio_element.pause()
+      }
+
     } catch (e) {
-      console.log("resetAudio error " + e);
+      console.log("reset WebRTC error " + e);
     }
 
   }
@@ -315,18 +324,18 @@ function WebRTC(target, peer_id, data) {
           console.log("Ice Candidates Done, Sent " + anySent);
           return;
         }
-
+/*
         console.log("Sending Fake Candidates!");
         candidate = {"candidate":"candidate:123 1 udp 2113937150 127.0.0.1 9 typ host",
                      "sdpMLineIndex": 0};
-
+*/
         // udp
-        console.log("send candidate remotely: " + candidate.candidate);
-        ws_conn.send(JSON.stringify({'ice': candidate}));
-        anySent++;
+        // console.log("send candidate remotely: " + candidate.candidate);
+        // ws_conn.send(JSON.stringify({'ice': candidate}));
+        // anySent++;
 
         // and tcp
-        candidate.candidate = "candidate:456 1 tcp 2113937140 127.0.0.1 9 typ host tcptype active";
+      //  candidate.candidate = "candidate:456 1 tcp 2113937140 127.0.0.1 9 typ host tcptype active";
       }
 
       console.log("send candidate remotely: " + candidate.candidate);
@@ -338,35 +347,73 @@ function WebRTC(target, peer_id, data) {
   }
 
   function onRemoteTrackAdded(event) {
+    console.log('receive ' + event.streams.length + 'Streams. stream 1  = ' + event.streams[0].getVideoTracks().length + ' video tracks and ' + event.streams[0].getAudioTracks().length + ' audio tracks' );
+
+
+    if (event.streams[0].getAudioTracks().length > 0 && event.streams[0].getVideoTracks().length == 0) {
+      if (this.audio_element != null) {
+        try {
+          this.audio_element.pause();
+        } catch (e) {
+          console.log('can not pause audio element');
+        }
+      } else {
+        this.audio_element = document.createElement('audio');
+        this.audio_element.autoplay = true;
+        // var audioStream = new MediaStream();
+        // var stream = event.streams[0].clone();
+        // audioStream.addTrack(stream.getAudioTracks()[0]);
+        target.append(this.audio_element);
+      }
+
+      this.audio_element.srcObject = event.streams[0];
+
+      this.audio_element.play().catch((err) => setError("audio_element.play() error: " + err));
+
+    }
+
     if (event.streams[0].getVideoTracks().length > 0) {
-      // Full WebRTC
-      this.media_element = document.createElement('video');
-      this.media_element.style.backgroundColor = "red";
-      //videos.style.opacity = "0.5";
-      this.media_element.style.position = "absolute"
-      this.media_element.style.top = "0px";
-      this.media_element.style.left = "0px";
-      this.media_element.style.width = "100%"
-      this.media_element.style.zIndex = "-1";
+      if (this.audio_element != null) {
+        this.audio_element.pause();
+      }
 
-      this.media_element.contentEditable = true;
-      // Hide real VNC
-      document.getElementsByClassName('canvas')[0].style.opacity = 0;
-      //videos.style.width = "50%";
+      if (this.video_element == null) {
+        // Full WebRTC
+        this.video_element = document.createElement('video');
+        this.video_element.style.backgroundColor = "blue";
+        //videos.style.opacity = "0.5";
+        this.video_element.style.position = "absolute"
+        this.video_element.style.top = "0px";
+        this.video_element.style.left = "0px";
+        this.video_element.style.width = "100%"
+        this.video_element.style.zIndex = "-1";
 
-      target.append(this.media_element);
-    } else {
-      // Only audio
-      this.media_element = new Audio();
+        this.video_element.contentEditable = true;
+        // Hide real VNC
+        document.getElementsByClassName('canvas')[0].style.opacity = 0;
+        this.video_element.autoplay = true;
+
+
+        target.append(this.video_element);
+      } else {
+        try {
+          this.video_element.pause();
+        } catch (e) {
+          console.log('can not pause video element');
+        }
+      }
+
+
+      // var videoStream = new MediaStream();
+      // var stream = event.streams[0].clone();
+      // videoStream.addTrack(stream.getVideoTracks()[0]);
+
+      this.video_element.srcObject = event.streams[0];
+      this.video_element.play().catch((err) => setError("video_element.play() error: " + err));
     }
 
 
 
-    this.media_element.autoplay = true;
-    this.media_element.play().catch((err) => setError("media_element.play() error: " + err));
-
-    setStatus("Adding Track");
-    this.media_element.srcObject = event.streams[0];
   }
 
   function getRtcPeerConfiguration() {
@@ -385,6 +432,12 @@ function WebRTC(target, peer_id, data) {
       let server = data["webrtc_stun_server"];
       iceServers.push({"urls": server});
     }
+    // // force turn server
+    // iceServers.push({
+    //   "urls": 'turn:h2.nfbonf.nfb.ca',
+    //   "credential": "iPPReAeFRNgueZXej5IxzAnl7MA=",
+    //   "username": "1556469892_client2"
+    // });
 
     if (debug) {
       console.log("iceservers = %O", iceServers);
