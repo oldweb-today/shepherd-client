@@ -432,12 +432,6 @@ function WebRTC(target, peer_id, data) {
       let server = data["webrtc_stun_server"];
       iceServers.push({"urls": server});
     }
-    // // force turn server
-    // iceServers.push({
-    //   "urls": 'turn:h2.nfbonf.nfb.ca',
-    //   "credential": "iPPReAeFRNgueZXej5IxzAnl7MA=",
-    //   "username": "1556469892_client2"
-    // });
 
     if (debug) {
       console.log("iceservers = %O", iceServers);
