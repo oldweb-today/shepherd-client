@@ -226,7 +226,7 @@ export default function CBrowser(reqid, target_div, init_params) {
     waiting_for_container = true;
 
     //var init_url = init_params.api_prefix + "/init_browser?" + toQueryString(req_params);
-    var init_url = init_params.api_prefix + "/api/start_flock/" + reqid;
+    var init_url = init_params.api_prefix + "/api/flock/start/" + reqid;
 
     var req_params = {"environ": environ};
 
