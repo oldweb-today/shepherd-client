@@ -36,10 +36,9 @@ To build the bundle (requires Node), run:
 ```bash
 yarn install
 yarn run build
-yarn run bundle
 ```
 
-(To build debug-friendly bundle run `yarn run bundle-dev`)
+(To build debug-friendly bundle run `yarn run build-dev`)
 
 
 ### Importing Module
@@ -48,7 +47,7 @@ To embed a remote/containerized browser into an existing application,
 you can import the node module and use the CBrowser class:
 
 ```
-import CBrowser from 'shepherd-client/lib/browser';
+import CBrowser from 'shepherd-client/src/browser';
 ...
 let cb = new CBrowser(...)
 ```
