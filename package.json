@@ -1,16 +1,16 @@
 {
   "name": "shepherd-client",
-  "version": "1.0.0",
+  "version": "1.1.0",
+  "license": "MIT",
   "main": "index.js",
   "scripts": {
     "compile": "babel src -d lib",
     "build": "webpack --mode production",
-    "build-dev": "webpack --mode development",
-    "bundle": "npm run compile; npm run build",
-    "bundle-dev": "npm run compile; npm run build-dev"
+    "build-dev": "webpack --mode development"
   },
   "dependencies": {
     "@novnc/novnc": "^1.0.0",
+    "lodash": "^4.17.13",
     "promise-polyfill": "^8.1.0",
     "unfetch": "^4.0.1"
   },
