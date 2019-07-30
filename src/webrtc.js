@@ -73,7 +73,7 @@ function WebRTC(target, peer_id, data) {
     if (data.proxy_ws) {
       ws_url += "/" + data.proxy_ws + audio_port;
     } else {
-      ws_url += ":" + audio_port + "/";
+      ws_url += ":" + audio_port + "/audio_ws";
     }
 
     return ws_url;
@@ -360,9 +360,6 @@ function WebRTC(target, peer_id, data) {
       } else {
         this.audio_element = document.createElement('audio');
         this.audio_element.autoplay = true;
-        // var audioStream = new MediaStream();
-        // var stream = event.streams[0].clone();
-        // audioStream.addTrack(stream.getAudioTracks()[0]);
         target.append(this.audio_element);
       }
 
@@ -403,17 +400,9 @@ function WebRTC(target, peer_id, data) {
         }
       }
 
-
-      // var videoStream = new MediaStream();
-      // var stream = event.streams[0].clone();
-      // videoStream.addTrack(stream.getVideoTracks()[0]);
-
       this.video_element.srcObject = event.streams[0];
       this.video_element.play().catch((err) => setError("video_element.play() error: " + err));
     }
-
-
-
   }
 
   function getRtcPeerConfiguration() {
