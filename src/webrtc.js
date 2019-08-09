@@ -4,29 +4,12 @@ export {WebRTC};
 function WebRTC(target, peer_id, data) {
 
   let debug = true;
-  let serverReflx = true;
   let connect_attempts = 0;
   let peer_connection;
   let ws_conn;
 
-  let cand_count = 1;
-  let LOCAL_PORT = 10235;
-
-  let remote_ips = [];
-
   let video_element;
   let audio_element;
-
-  // setup possible remote ips based on hostname or specified IP
-  if (data.webrtcHostIP) {
-    remote_ips.push(data.webrtcHostIP);
-  }
-
-  getLocalIPs();
-
-  if (!remote_ips.includes(window.location.hostname)) {
-    remote_ips.push(window.location.hostname);
-  }
 
   this.start = function() {
     if (video_element || audio_element) {
@@ -116,101 +99,31 @@ function WebRTC(target, peer_id, data) {
           }
           return;
         }
-
         // Incoming JSON signals the beginning of a call
-        if (!peer_connection)
-          createCall(msg);
-
         if (msg.sdp != null) {
           onIncomingSDP(msg.sdp);
         } else if (msg.ice != null) {
           onIncomingICE(msg.ice);
+        } else if (msg.iceServers != null) {
+          onIncomingConfiguration(msg);
+
         } else {
           handleIncomingError("Unknown incoming JSON: " + msg);
         }
     }
   }
 
-  function getLocalIPs() {
-    if (window.location.hostname != "localhost" &&
-        window.location.hostname != "127.0.0.1") {
-      return;
-    }
-
-    if (!remote_ips.includes("127.0.0.1")) {
-      remote_ips.push("127.0.0.1");
-    }
-
-    var pc = new RTCPeerConnection({iceServers: []});
-    pc.createDataChannel("");
-    pc.onicecandidate = function(ice) {
-      if (!ice || !ice.candidate || !ice.candidate.candidate) {
-        pc.close();
-        return;
-      }
-
-      var parts = ice.candidate.candidate.split(" ");
-      if (!remote_ips.includes(parts[4])) {
-        if (debug) {
-          console.log("Detected Local IP: " + parts[4]);
-        }
-        remote_ips.push(parts[4]);
-      }
-    }
-
-    pc.createOffer({offerToReceiveAudio: false, offerToReceiveVideo: false}).then(function(ice) {
-      pc.setLocalDescription(ice);
-    });
-  }
-
-  function buildIceCandidate(parts, ice, hostIP) {
-    parts[0] = "candidate:" + (cand_count++);
-    parts[4] = hostIP;
-
-    if (serverReflx) {
-      parts[7] = "srflx";
-      parts.splice(8, 0, "raddr", hostIP, "rport", parts[5]);
-    }
-
-    ice.candidate = parts.join(" ");
-
+  function onIncomingConfiguration(msg) {
     if (debug) {
-      console.log(JSON.stringify(ice));
+      console.log("Create peerConnection with configuration" + JSON.stringify(msg));
     }
-
-    let candidate = new RTCIceCandidate(ice);
-    peer_connection.addIceCandidate(candidate).catch(() => setError("Error adding ice candidate"));
+    createCall(msg);
   }
 
   // ICE candidate received from peer, add it to the peer connection
   function onIncomingICE(ice) {
-    var parts = ice.candidate.split(" ");
-
-    if (parts[1] == "2") {
-      // skipping rtcp
-      return;
-    }
-
-    if (parts[5] != LOCAL_PORT) {
-      return;
-    }
-
-    if (parts[2] == "TCP") {
-      parts[5] = data.ports.ice_tcp_port;
-    } else {
-      parts[5] = data.ports.ice_udp_port;
-    }
-
-    if (debug) {
-      console.log("Remote IPs: " + JSON.stringify(remote_ips));
-    }
-
-    // iterate through all known remote ips
-    remote_ips.forEach(function(ip) {
-      buildIceCandidate(parts, ice, ip);
-      // lower priority for each additional candidate
-      parts[3] = (parseInt(parts[3]) - 1) + "";
-    });
+    let candidate = new RTCIceCandidate(ice);
+    peer_connection.addIceCandidate(candidate).catch(() => setError("Error adding ice candidate"));
   }
 
   function onServerClose(event) {
@@ -283,7 +196,7 @@ function WebRTC(target, peer_id, data) {
   }
 
   this.close = function() {
-    setStatus("Closing WebRTC audio connection");
+    setStatus("Closing WebRTC connection");
     disconnectWebsocket();
   };
 
@@ -300,42 +213,23 @@ function WebRTC(target, peer_id, data) {
     }
   }
 
-  function createCall() {
+  function createCall(configuration) {
     // Reset connection attempts because we connected successfully
     connect_attempts = 0;
 
-    peer_connection = new RTCPeerConnection(getRtcPeerConfiguration());
+    peer_connection = new RTCPeerConnection(configuration);
     peer_connection.ontrack = onRemoteTrackAdded;
 
-    /* Send our video/audio to the other peer */
-    //if (!msg.sdp) {
-    //  console.log("WARNING: First message wasn't an SDP message!?");
-    //}
     let anySent = 0;
 
     peer_connection.onicecandidate = (event) => {
-      // We have a candidate, send it to the remote party with the
-      // same uuid
       let candidate = event.candidate;
 
       if (candidate == null) {
-
         if (anySent) {
           console.log("Ice Candidates Done, Sent " + anySent);
           return;
         }
-/*
-        console.log("Sending Fake Candidates!");
-        candidate = {"candidate":"candidate:123 1 udp 2113937150 127.0.0.1 9 typ host",
-                     "sdpMLineIndex": 0};
-*/
-        // udp
-        // console.log("send candidate remotely: " + candidate.candidate);
-        // ws_conn.send(JSON.stringify({'ice': candidate}));
-        // anySent++;
-
-        // and tcp
-      //  candidate.candidate = "candidate:456 1 tcp 2113937140 127.0.0.1 9 typ host tcptype active";
       }
 
       console.log("send candidate remotely: " + candidate.candidate);
@@ -403,30 +297,6 @@ function WebRTC(target, peer_id, data) {
       this.video_element.srcObject = event.streams[0];
       this.video_element.play().catch((err) => setError("video_element.play() error: " + err));
     }
-  }
-
-  function getRtcPeerConfiguration() {
-    let iceServers = [];
-    if (data["webrtc_turn_server"]) {
-      let server = data["webrtc_turn_server"];
-      let credentials = data["webrtc_turn_credentials"];
-
-      iceServers.push({
-        "urls": server,
-        "credential": credentials["password"],
-        "username": credentials["username"]
-      });
-    }
-    if (data["webrtc_stun_server"]) {
-      let server = data["webrtc_stun_server"];
-      iceServers.push({"urls": server});
-    }
-
-    if (debug) {
-      console.log("iceservers = %O", iceServers);
-    }
-
-    return {"iceServers": iceServers};
   }
 
   return this;
