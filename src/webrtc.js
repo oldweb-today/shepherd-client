@@ -11,14 +11,50 @@ function WebRTC(target, peer_id, data) {
   let video_element;
   let audio_element;
 
+  let video_formats = [];
+
   this.start = function() {
     if (video_element || audio_element) {
       console.log("already started");
       return;
     }
 
-    connectToSignalingServer();
+    determineFormats().then((formats) => {
+      video_formats = formats;
+      connectToSignalingServer();
+    });
+
   };
+
+  function determineFormats() {
+    var conn = new RTCPeerConnection();
+    if (conn.addTransceiver) {
+      conn.addTransceiver("video", {"direction": "recvonly"});
+    }
+
+    return new Promise((resolve, reject) => {
+      conn.createOffer({"offerToReceiveVideo": true}).then((offer) => { 
+        conn.close();
+
+        var formats = [];
+        var found = {};
+
+        var rx = /a=rtpmap[:]\d+ (\w+)\//g;
+
+        var res = null;
+
+        while ((res = rx.exec(offer.sdp)) != null) {
+           var format = res[1];
+           if (!found[format]) {
+             formats.push(format);
+             found[format] = 1;
+           }
+        }
+
+        resolve(formats);
+      });
+    });
+  }
 
   function connectToSignalingServer() {
     connect_attempts++;
@@ -28,14 +64,14 @@ function WebRTC(target, peer_id, data) {
     }
 
     // Fetch the peer id to use
-    let peer_id = getPeerId();
+    //let peer_id = getPeerId();
     let ws_url = getSignallingServer();
     setStatus("Connecting to server " + ws_url + ", attempt= " + connect_attempts);
     ws_conn = new WebSocket(ws_url);
     /* When connected, immediately register with the server */
     ws_conn.addEventListener('open', () => {
-      ws_conn.send('HELLO ' + peer_id)
-      setStatus("Registering with server, peer-id = " + peer_id);
+      ws_conn.send('HELLO ' + JSON.stringify({"formats": video_formats}));
+      setStatus("Registering with server, available formats = " + video_formats);
     });
 
     ws_conn.addEventListener('error', onServerError);
@@ -282,7 +318,8 @@ function WebRTC(target, peer_id, data) {
         this.video_element.contentEditable = true;
         // Hide real VNC
         document.getElementsByClassName('canvas')[0].style.opacity = 0;
-        this.video_element.autoplay = true;
+        //this.video_element.autoplay = true;
+        //this.video_element.muted = true;
 
 
         target.append(this.video_element);
@@ -295,7 +332,20 @@ function WebRTC(target, peer_id, data) {
       }
 
       this.video_element.srcObject = event.streams[0];
-      this.video_element.play().catch((err) => setError("video_element.play() error: " + err));
+
+      var video = this.video_element;
+
+      this.video_element.play().catch((err) => {
+        if (err.name === 'NotAllowedError') {
+          video.muted = true;
+          document.body.addEventListener("click", () => {
+            video.muted = false;
+          }, { once: true });
+          video.play().catch((err) => setError("video_element.play() error: " + err));
+        } else {
+          setError("video_element.play() error: " + err);
+        }
+      });
     }
   }
 
