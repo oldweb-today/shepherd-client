@@ -1,8 +1,7 @@
 import 'unfetch/polyfill/index';
 import RFB from '@novnc/novnc/core/rfb';
 import Promise from 'promise-polyfill';
-import { WSAudio, getBestAudioType } from './audio-mediasource';
-import { WebRTC } from './webrtc';
+import MediaController from "./media-controller";
 
 
 function toQueryString(obj) {
@@ -296,35 +295,17 @@ export default function CBrowser(reqid, target_div, init_params) {
 
       vnc_pass = data.containers.xserver.environ.VNC_PASS;
 
-      if (init_params.audio && !window.audioPlugin) {
-        if (audioType) {
-          // for now, check if webrtc set in init params
-          if (init_params.webrtc) {
-            console.log("webRTC: init plugin");
-            var webrtc_data = {};
+      let media_params = {"ports":ports,
+        "proxy_ws":init_params.proxy_ws,
+        "lock_audio": (init_params.audio == "wait_for_click")
+      };
+      window.mediaController = new MediaController(targetDivNode, media_params);
 
-            webrtc_data.ports = ports;
-            //webrtc_data.webrtc_stun_server = "stun:stun.l.google.com:19302";
-            webrtc_data.proxy_ws = init_params.proxy_ws;
-            webrtc_data.webrtcHostIP = init_params.webrtcHostIP;
+      if (init_params.audio == "wait_for_click") {
+        document.body.addEventListener('click', function () {
+          window.mediaController.unlockAudio();
+        }, { once: true });
 
-            window.audioPlugin = new WebRTC(targetDivNode,"1", webrtc_data);
-          } else {
-            console.log("WSAudio: init plugin");
-            window.audioPlugin = new WSAudio({"audio": audioType,
-                                              "cmd_port": ports.cmd_port}, init_params);
-          }
-
-          if (init_params.audio == "wait_for_click") {
-            // activate audio on first click
-            document.body.addEventListener('click', function () {
-              window.audioPlugin.start();
-            }, { once: true });
-          } else {
-            // start right away -- may be muted on latest Chrome until click
-            window.audioPlugin.start();
-          }
-        }
       }
 
       if (init_params.on_event) {

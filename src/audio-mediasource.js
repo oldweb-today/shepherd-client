@@ -11,7 +11,7 @@ const AUDIO_TYPES = [
     "type": OPUS_MIME_TYPE},
 ];
 
-export {getBestAudioType, WSAudio};
+export {getBestAudioType, MSAudio};
 
 
 function getBestAudioType() {
@@ -24,69 +24,67 @@ function getBestAudioType() {
   }
 };
 
+export default class MSAudio {
+  constructor (format, media_controller, lock_audio) {
+    this.format = format;
+    this.media_controller = media_controller;
+    this.lock_audio = lock_audio;
 
-function WSAudio (browser_info, init_params) {
-  init_params = init_params || {};
+    this.MAX_BUFFERS = 250;
+    this.MIN_START_BUFFERS = 10;
 
-  var MAX_BUFFERS = 250;
-  var MIN_START_BUFFERS = 10;
+    this.minLatency = 0.2; // 200ms
+    this.maxLatency = 0.5  // 500ms
 
-  var minLatency = 0.2; // 200ms
-  var maxLatency = 0.5  // 500ms
-  this.latencyCheck = null;
+    this.latencyCheck = null;
 
-  this.ws = null;
-  this.ws_url = null;
+    this.ws = null;
+    this.ws_url = null;
 
-  this.errCount = 0;
+    this.errCount = 0;
 
-  this.allowAppend = false;
+    this.allowAppend = false;
 
-  this.audio = null;
-  this.audio_mime = null;
-  this.mediasource = null;
-  this.buffer = null;
+    this.audio = null;
+    this.audio_mime = null;
+    this.mediasource = null;
+    this.buffer = null;
 
-  this.buffQ = [];
-  this.buffCount = 0;
-  this.buffSize = 0;
+    this.buffQ = [];
+    this.buffCount = 0;
+    this.buffSize = 0;
 
-  this.get_audio_mime = function(browser_info) {
+
+  }
+
+  get_audio_mime() {
     for (var i = 0; i < AUDIO_TYPES.length; i++) {
-      if (AUDIO_TYPES[i].id == browser_info.audio) {
+      if (AUDIO_TYPES[i].id == this.format) {
         return AUDIO_TYPES[i].type;
       }
     }
 
-    console.log("Audio not inited, unknown audio type: " + browser_info.audio);
+    console.log("Audio not inited, unknown audio type: " + this.format);
     return null;
   }
 
-  this.get_ws_url = function(browser_info) {
-    var ws_url = (window.location.protocol == "https:" ? "wss:" : "ws:");
-    ws_url += window.location.hostname;
-
-    var audio_port = browser_info.cmd_port;
-
-    if (init_params.proxy_ws) {
-      ws_url += "/" + init_params.proxy_ws + audio_port;
-    } else {
-      ws_url += ":" + audio_port + "/audio_ws";
+  unlockAudio() {
+    if (this.debug) {
+      console.log("Unlock MSAudio");
     }
-
-    return ws_url;
+    this.lock_audio = false;
+    if (this.audio != null) {
+      this.audio.muted = false;
+      this.audio.play().catch(function() { });
+    }
   }
 
-
-  this.start = function() {
-    if (this.audio) {
-      return true;
-    }
-
-    this.audio_mime = this.get_audio_mime(browser_info);
-    this.ws_url = this.get_ws_url(browser_info);
+  start() {
+    console.log('start MS Audio');
+    this.audio_mime = this.get_audio_mime();
 
     if (!this.audio_mime) {
+      console.log("audio Mime not found");
       return false;
     }
 
@@ -102,13 +100,17 @@ function WSAudio (browser_info, init_params) {
     this.audio = new Audio();
     this.audio.src = URL.createObjectURL(this.mediasource);
     this.audio.autoplay = true;
+    this.audio.muted = this.lock_audio;
     this.audio.load();
     this.audio.play().catch(function() { });
+
+    let msg = {'ms_audio': getBestAudioType()};
+    this.media_controller.send(msg);
 
     return true;
   }
 
-  this.sourceOpen = function() {
+  sourceOpen() {
     if (this.mediasource.sourceBuffers.length) {
       console.log("source already open");
       return;
@@ -136,10 +138,9 @@ function WSAudio (browser_info, init_params) {
 
     this.allowAppend = true;
 
-    this.initWs();
   };
 
-  this.close = function() {
+  close() {
     console.log("Closing Audio");
     try {
       if (this.latencyCheck) {
@@ -168,17 +169,9 @@ function WSAudio (browser_info, init_params) {
       console.log("Error Closing: " + e);
     }
 
-    if (this.ws) {
-      console.log("Closing websocket");
-      try {
-        this.ws.close();
-      } catch(e) {}
-
-      this.ws = null;
-    }
   }
 
-  this.mergeBuffers = function() {
+  mergeBuffers() {
     var merged;
 
     if (this.buffQ.length == 1) {
@@ -204,12 +197,12 @@ function WSAudio (browser_info, init_params) {
     return merged;
   }
 
-  this.onUpdateEnd = function() {
+  onUpdateEnd() {
     this.allowAppend = true;
     this.updateNext();
   }
 
-  this.updateNext = function() {
+  updateNext() {
     if (!this.buffQ.length) {
       return;
     }
@@ -225,13 +218,13 @@ function WSAudio (browser_info, init_params) {
     }
   }
 
-  this.latencyController = function() {
+  latencyController() {
     // check for latency and seek forward if necessary
     try {
       var latency = this.audio.buffered.end(0) - this.audio.currentTime;
-      if (latency > maxLatency) {
-        this.audio.currentTime = this.audio.buffered.end(0) - minLatency;
-        console.log("Audio has been seeked by ", Math.round((latency - minLatency) * 1000), " ms");
+      if (latency > this.maxLatency) {
+        this.audio.currentTime = this.audio.buffered.end(0) - this.minLatency;
+        console.log("Audio has been seeked by ", Math.round((latency - this.minLatency) * 1000), " ms");
       }
 
     } catch(e) {
@@ -239,82 +232,36 @@ function WSAudio (browser_info, init_params) {
     }
   }
 
-  this.audioError = function(msg, event) {
+  audioError(msg, event) {
     if (this.audio && this.audio.error) {
       console.log(msg);
       console.log(this.audio.error);
-      //console.log("num processed: " + this.buffCount);
       this.errCount += 1;
-      //if (this.errCount == 1) {
-      //    setTimeout(restartAudio, 3000);
-      //}
+
     }
   }
 
-  this.queue = function(buffer) {
-    /*
-    if (this.buffSize > 200000) {
-        if (this.buffCount > 0) {
-            var res = this.buffQ.shift();
-            this.buffSize -= res.length;
-            console.log("dropping old buffers");
-        } else {
-            // don't drop the starting buffers
-            console.log("dropping new buffers");
-            this.updateNext();
-            return;
+  queue(buffer) {
+
+    new Response(buffer).arrayBuffer()
+      .then(function (buffer) {
+        buffer = new Uint8Array(buffer);
+        this.buffQ.push(buffer);
+        this.buffSize += buffer.length;
+        if (this.allowAppend) {
+          this.updateNext();
         }
-    }
-    */
-
-    buffer = new Uint8Array(buffer);
-    this.buffQ.push(buffer);
-    this.buffSize += buffer.length;
-
-    if (this.allowAppend) {
-      this.updateNext();
-    }
+      }.bind(this));
   }
 
-  this.initWs = function() {
-    try {
-      this.ws = new WebSocket(this.ws_url, "binary");
-    } catch (e) {
-      this.audioError("WS Open Failed");
-    }
-
-    this.ws.binaryType = 'arraybuffer';
-    this.ws.addEventListener("open", ws_open.bind(this));
-    this.ws.addEventListener("close", ws_close.bind(this));
-    this.ws.addEventListener("message", ws_message.bind(this));
-    this.ws.addEventListener('error', ws_error.bind(this));
-  }
-
-  var ws_open = function(event) {
-    //this.send("ready");
-  }
-
-  var ws_message = function(event) {
+  handleMessage(data) {
     if (this.errCount == 0) {
-      this.queue(event.data);
+      this.queue(data);
     }
+
+    return true;
   }
 
-  var ws_error = function() {
-    this.audioError("WS Error");
-  }
-
-  var ws_close = function() {
-    this.audioError("WS Close");
-  }
-
-  return this;
-
-  //return {"start": start,
-  //        "stop": stop,
-  //        "restart": restartAudio,
-  //        "getAudio": function () {return  audioWS.audio;},
-  //}
 };
 
 

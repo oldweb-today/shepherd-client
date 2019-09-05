@@ -1,284 +1,178 @@
-export {WebRTC};
+export {WebRTC, determineVideoFormats};
 
 
-function WebRTC(target, peer_id, data) {
+export default class WebRTC {
 
-  let debug = true;
-  let connect_attempts = 0;
-  let peer_connection;
-  let ws_conn;
+  constructor(target, peer_id, media_controller, lock_audio) {
 
-  let video_element;
-  let audio_element;
+    this.debug = true;
+    this.lock_audio = lock_audio;
+    this.peer_connection;
+    this.media_controller = media_controller;
 
-  let video_formats = [];
+    this.video_element;
+    this.audio_element;
 
-  this.start = function() {
-    if (video_element || audio_element) {
+    this.target = target;
+    this.peer_id = peer_id;
+    this.candidate_number = 0;
+  }
+
+  start() {
+    if (this.video_element || this.audio_element) {
       console.log("already started");
       return;
     }
-
-    determineFormats().then((formats) => {
-      video_formats = formats;
-      connectToSignalingServer();
-    });
-
   };
 
-  function determineFormats() {
-    var conn = new RTCPeerConnection();
-    if (conn.addTransceiver) {
-      conn.addTransceiver("video", {"direction": "recvonly"});
-    }
-
-    return new Promise((resolve, reject) => {
-      conn.createOffer({"offerToReceiveVideo": true}).then((offer) => { 
-        conn.close();
-
-        var formats = [];
-        var found = {};
-
-        var rx = /a=rtpmap[:]\d+ (\w+)\//g;
-
-        var res = null;
-
-        while ((res = rx.exec(offer.sdp)) != null) {
-           var format = res[1];
-           if (!found[format]) {
-             formats.push(format);
-             found[format] = 1;
-           }
-        }
-
-        resolve(formats);
-      });
-    });
+  getPeerId() {
+    return this.peer_id;
   }
 
-  function connectToSignalingServer() {
-    connect_attempts++;
-    if (connect_attempts > 100) {
-      setError("Too many connection attempts, aborting. Refresh page to try again");
-      return;
-    }
-
-    // Fetch the peer id to use
-    //let peer_id = getPeerId();
-    let ws_url = getSignallingServer();
-    setStatus("Connecting to server " + ws_url + ", attempt= " + connect_attempts);
-    ws_conn = new WebSocket(ws_url);
-    /* When connected, immediately register with the server */
-    ws_conn.addEventListener('open', () => {
-      ws_conn.send('HELLO ' + JSON.stringify({"formats": video_formats}));
-      setStatus("Registering with server, available formats = " + video_formats);
-    });
-
-    ws_conn.addEventListener('error', onServerError);
-    ws_conn.addEventListener('message', onServerMessage);
-    ws_conn.addEventListener('close', onServerClose);
-  }
-
-  function getPeerId() {
-    return peer_id;
-  }
-
-  function getSignallingServer() {
-    let ws_url = (window.location.protocol === "https:" ? "wss://" : "ws://");
-    ws_url += window.location.hostname;
-
-    var audio_port = data.ports.cmd_port;
-
-    if (data.proxy_ws) {
-      ws_url += "/" + data.proxy_ws + audio_port;
-    } else {
-      ws_url += ":" + audio_port + "/audio_ws";
-    }
-
-    return ws_url;
-  }
-
-  function onServerError() {
-    setError("Unable to connect to server, did you add an exception for the certificate?");
-    // Retry after 3 seconds
-    window.setTimeout(connectToSignalingServer, 3000);
-  }
-
-  function handleIncomingError(message) {
-    if (debug) {
-      console.log("handleIncomingError: " + message);
-    }
-  }
-
-  function onServerMessage(event) {
-    if (debug) {
-      console.log("Received from websocket " + event.data);
-    }
-    let msg;
-    switch (event.data) {
-      case "HELLO":
-        setStatus("Registered with server, waiting for call");
-        return;
-      default:
-        if (event.data.startsWith("ERROR")) {
-          handleIncomingError(event.data);
-          return;
-        }
-        // Handle incoming JSON SDP and ICE messages
-        try {
-          msg = JSON.parse(event.data);
-        } catch (e) {
-          if (e instanceof SyntaxError) {
-            handleIncomingError("Error parsing incoming JSON: " + event.data);
-          } else {
-            handleIncomingError("Unknown error parsing response: " + event.data);
-          }
-          return;
-        }
-        // Incoming JSON signals the beginning of a call
-        if (msg.sdp != null) {
-          onIncomingSDP(msg.sdp);
-        } else if (msg.ice != null) {
-          onIncomingICE(msg.ice);
-        } else if (msg.iceServers != null) {
-          onIncomingConfiguration(msg);
-
-        } else {
-          handleIncomingError("Unknown incoming JSON: " + msg);
-        }
-    }
-  }
-
-  function onIncomingConfiguration(msg) {
-    if (debug) {
+  onIncomingConfiguration(msg) {
+    if (this.debug) {
       console.log("Create peerConnection with configuration" + JSON.stringify(msg));
     }
-    createCall(msg);
+    this.createCall(msg);
   }
 
   // ICE candidate received from peer, add it to the peer connection
-  function onIncomingICE(ice) {
+  onIncomingICE(ice) {
     let candidate = new RTCIceCandidate(ice);
-    peer_connection.addIceCandidate(candidate).catch(() => setError("Error adding ice candidate"));
+    this.peer_connection.addIceCandidate(candidate).catch(() => this.setError("Error adding ice candidate"));
   }
 
-  function onServerClose(event) {
-    setStatus('Disconnected from server with code=' + event.code + ' reason=' + event.reason);
-    reset();
-    disconnectWebsocket();
-
-    if (event.code !== 1002) {
-      // Reset after a second
-      window.setTimeout(connectToSignalingServer, 2000);
-    } else {
-      if (connect_attempts < 5) {
-        // Retrieve to connect up to 5 times (peer-id might be in conflict if init_browser is called again)
-        window.setTimeout(connectToSignalingServer, 2000);
-      }
-    }
-  }
-
-  function setStatus(status) {
-    if (debug) {
+  setStatus(status) {
+    if (this.debug) {
       console.log("WebRTC-status:" + status);
     }
   }
 
-  function setError(error) {
-    if (debug) {
+  setError(error) {
+    if (this.debug) {
       console.log("WebRTC-error: " + error);
     }
   }
 
-  function onIncomingSDP(sdp) {
-    peer_connection.setRemoteDescription(sdp).then(() => {
-      setStatus("Remote SDP set");
+  onIncomingSDP(sdp) {
+    this.peer_connection.setRemoteDescription(sdp).then(() => {
+      this.setStatus("Remote SDP set");
       if (sdp.type !== "offer")
         return;
-      setStatus("Got SDP offer");
-      peer_connection.createAnswer()
-        .then(onLocalDescription).catch(() => setError("Error setting local description"));
-    }).catch((event) => setError("Error setting remote description:" + event));
+      this.setStatus("Got SDP offer");
+      this.peer_connection.createAnswer()
+        .then(this.onLocalDescription.bind(this)).catch(() => this.setError("Error setting local description"));
+    }).catch((event) => this.setError("Error setting remote description:" + event));
   }
 
   // Local description was set, send it to peer
-  function onLocalDescription(desc) {
-    if (debug) {
+  onLocalDescription(desc) {
+    if (this.debug) {
       console.log("Got local description: " + JSON.stringify(desc));
     }
-    peer_connection.setLocalDescription(desc).then(function() {
-      setStatus("Sending SDP answer");
-      let sdp = JSON.stringify({'sdp': peer_connection.localDescription});
-      ws_conn.send(sdp);
-    });
+    this.peer_connection.setLocalDescription(desc).then(function() {
+      this.setStatus("Sending SDP answer");
+      let sdp = {'sdp': this.peer_connection.localDescription};
+      this.media_controller.send(sdp);
+    }.bind(this));
   }
 
 
-  function reset() {
-    // Reset the media_element element and stop showing the last received frame
+  handleMessage(data) {
     try {
-
-      if (video_element) {
-        video_element.pause();
+      let msg = JSON.parse(data);
+      // Incoming JSON signals the beginning of a call
+      if (msg.sdp != null) {
+        this.onIncomingSDP(msg.sdp);
+        return true;
+      } else if (msg.ice != null) {
+        this.onIncomingICE(msg.ice);
+        return true;
+      } else if (msg.iceServers != null) {
+        this.onIncomingConfiguration(msg);
+        return true;
       }
-      if (audio_element) {
-        audio_element.pause()
-      }
+    } catch (e) {}
 
-    } catch (e) {
-      console.log("reset WebRTC error " + e);
-    }
-
+    return false;
   }
 
-  this.close = function() {
-    setStatus("Closing WebRTC connection");
-    disconnectWebsocket();
+  unlockAudio() {
+    if (this.debug) {
+      console.log("Unlock webrtc audio");
+    }
+    this.lock_audio = false;
+    if (this.audio_element != null) {
+      this.audio_element.muted = false;
+    }
+    if (this.video_element != null) {
+      this.video_element.muted = false;
+    }
+  }
+
+  close() {
+    this.setStatus("Closing WebRTC connection");
+    this.peer_connection.close();
+    this.peer_connection = null;
   };
 
-  function disconnectWebsocket() {
-    if (ws_conn) {
-      setStatus("disconnect websocket");
-      ws_conn.close();
-    }
+  createCall(configuration) {
 
-    if (peer_connection) {
-      setStatus("disconnect peer");
-      peer_connection.close();
-      peer_connection = null;
-    }
+    this.peer_connection = new RTCPeerConnection(configuration);
+    this.peer_connection.ontrack = this.onRemoteTrackAdded.bind(this);
+    this.peer_connection.oniceconnectionstatechange = this.onIceConnectionStateChange.bind(this);
+    this.peer_connection.onicecandidate = this.onIceCandidate.bind(this);
+
+    this.setStatus("Created peer connection for call, waiting for SDP");
   }
 
-  function createCall(configuration) {
-    // Reset connection attempts because we connected successfully
-    connect_attempts = 0;
-
-    peer_connection = new RTCPeerConnection(configuration);
-    peer_connection.ontrack = onRemoteTrackAdded;
-
-    let anySent = 0;
-
-    peer_connection.onicecandidate = (event) => {
+  onIceCandidate(event) {
       let candidate = event.candidate;
 
       if (candidate == null) {
-        if (anySent) {
-          console.log("Ice Candidates Done, Sent " + anySent);
-          return;
-        }
+        console.log("Ice Candidates Done, Sent " + this.candidate_number);
+        return;
       }
 
       console.log("send candidate remotely: " + candidate.candidate);
-      ws_conn.send(JSON.stringify({'ice': candidate}));
-      anySent++;
+      this.media_controller.send({'ice': candidate});
+      this.candidate_number++;
     };
 
-    setStatus("Created peer connection for call, waiting for SDP");
+  onIceConnectionStateChange(event) {
+    if (this.peer_connection.iceConnectionState === "connected") {
+        if (this.debug) {
+          console.log("WebRTC is on!");
+        }
+    }
   }
 
-  function onRemoteTrackAdded(event) {
-    console.log('receive ' + event.streams.length + 'Streams. stream 1  = ' + event.streams[0].getVideoTracks().length + ' video tracks and ' + event.streams[0].getAudioTracks().length + ' audio tracks' );
+  syncVideoElement() {
+    let canvas = this.target.getElementsByTagName('canvas')[0];
+    if (this.video_element != null  && canvas != undefined) {
+      let canvas_position = canvas.getBoundingClientRect();
+      let left = canvas_position.x;
+      let top = canvas_position.y;
+      let width = canvas_position.width;
+      let height = canvas_position.height;
 
+      if (this.debug) {
+        console.log("Video position is left " + left + ", top " + top + ", width " + width + ", height " + height);
+      }
+
+      this.video_element.style.left = left + "px";
+      this.video_element.style.top = top + "px";
+      if (width > 0) {
+        this.video_element.style.width = width + "px";
+      }
+      if (height > 0) {
+        this.video_element.style.height = height + "px";
+      }
+    }
+  }
+
+  onRemoteTrackAdded(event) {
+    console.log('receive ' + event.streams.length + 'Streams. stream 1  = ' + event.streams[0].getVideoTracks().length + ' video tracks and ' + event.streams[0].getAudioTracks().length + ' audio tracks' );
 
     if (event.streams[0].getAudioTracks().length > 0 && event.streams[0].getVideoTracks().length == 0) {
       if (this.audio_element != null) {
@@ -290,12 +184,12 @@ function WebRTC(target, peer_id, data) {
       } else {
         this.audio_element = document.createElement('audio');
         this.audio_element.autoplay = true;
-        target.append(this.audio_element);
+        this.target.append(this.audio_element);
       }
 
       this.audio_element.srcObject = event.streams[0];
 
-      this.audio_element.play().catch((err) => setError("audio_element.play() error: " + err));
+      this.audio_element.play().catch((err) => this.setError("audio_element.play() error: " + err));
 
     }
 
@@ -307,22 +201,28 @@ function WebRTC(target, peer_id, data) {
       if (this.video_element == null) {
         // Full WebRTC
         this.video_element = document.createElement('video');
-        this.video_element.style.backgroundColor = "blue";
-        //videos.style.opacity = "0.5";
+        if (this.debug) {
+          this.video_element.style.backgroundColor = "blue";
+        }
+        //this.video_element.style.opacity = "0.5";
         this.video_element.style.position = "absolute"
         this.video_element.style.top = "0px";
         this.video_element.style.left = "0px";
-        this.video_element.style.width = "100%"
+        //this.video_element.style.width = "100%"
         this.video_element.style.zIndex = "-1";
 
         this.video_element.contentEditable = true;
         // Hide real VNC
-        document.getElementsByClassName('canvas')[0].style.opacity = 0;
-        //this.video_element.autoplay = true;
-        //this.video_element.muted = true;
+        this.target.getElementsByClassName('canvas')[0].style.opacity = 0;
+
+        if (this.lock_audio) {
+          this.video_element.muted = true;
+        }
 
 
-        target.append(this.video_element);
+        this.target.append(this.video_element);
+        window.onresize = this.syncVideoElement.bind(this);
+        this.syncVideoElement();
       } else {
         try {
           this.video_element.pause();
@@ -341,18 +241,48 @@ function WebRTC(target, peer_id, data) {
           document.body.addEventListener("click", () => {
             video.muted = false;
           }, { once: true });
-          video.play().catch((err) => setError("video_element.play() error: " + err));
+          video.play().catch((err) => this.setError("video_element.play() error: " + err));
         } else {
-          setError("video_element.play() error: " + err);
+          this.setError("video_element.play() error: " + err);
         }
       });
     }
   }
-
-  return this;
-
 };
 
+function determineVideoFormats() {
 
+  return new Promise((resolve, reject) => {
+    try {
+      var conn = new RTCPeerConnection();
+      if (conn.addTransceiver) {
+        conn.addTransceiver("video", {"direction": "recvonly"});
+      }
+      conn.createOffer({"offerToReceiveVideo": true}).then((offer) => {
+        conn.close();
 
+        var formats = [];
+        var found = {};
+
+        var rx = /a=rtpmap[:]\d+ (\w+)\//g;
+
+        var res = null;
+
+        while ((res = rx.exec(offer.sdp)) != null) {
+          var format = res[1];
+          if (!found[format]) {
+            formats.push(format);
+            found[format] = 1;
+          }
+        }
+
+        resolve(formats);
+      });
+    } catch (e) {
+      console.log("Error WebRTC not supported")
+      resolve();
+    }
+
+  });
+}
 
