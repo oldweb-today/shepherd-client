@@ -53,6 +53,8 @@ export default class MediaController {
     this.ws_conn.addEventListener('error', this.onServerError.bind(this));
     this.ws_conn.addEventListener('message', this.onServerMessage.bind(this));
     this.ws_conn.addEventListener('close', this.onServerClose.bind(this));
+
+    window.onbeforeunload = this.close.bind(this);
   }
 
   allowWebRTC(formats) {
@@ -103,6 +105,14 @@ export default class MediaController {
       window.mediaPlugin = new MSAudio(audio_format, this, this.lock_audio);
     }
     window.mediaPlugin.start();
+  }
+
+  close () {
+    this.disconnectWebsocket();
+    if (window.mediaPlugin) {
+      window.mediaPlugin.close();
+      window.mediaPlugin = null;
+    }
   }
 
   onServerClose(event) {

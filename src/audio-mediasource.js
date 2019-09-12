@@ -19,6 +19,8 @@ function getBestAudioType() {
     for (var i = 0; i < AUDIO_TYPES.length; i++) {
       if (window.MediaSource.isTypeSupported(AUDIO_TYPES[i].type)) {
         return AUDIO_TYPES[i].id;
+      } else {
+          console.log("do not support " + AUDIO_TYPES[i].type);
       }
     }
   }
@@ -34,7 +36,7 @@ export default class MSAudio {
     this.MIN_START_BUFFERS = 10;
 
     this.minLatency = 0.2; // 200ms
-    this.maxLatency = 0.5  // 500ms
+    this.maxLatency = 0.5;  // 500ms
 
     this.latencyCheck = null;
 
@@ -53,7 +55,6 @@ export default class MSAudio {
     this.buffQ = [];
     this.buffCount = 0;
     this.buffSize = 0;
-
 
   }
 
@@ -80,7 +81,7 @@ export default class MSAudio {
   }
 
   start() {
-    console.log('start MS Audio');
+    console.log('start MS Audio with format ' + this.format);
     this.audio_mime = this.get_audio_mime();
 
     if (!this.audio_mime) {
@@ -102,10 +103,11 @@ export default class MSAudio {
     this.audio.autoplay = true;
     this.audio.muted = this.lock_audio;
     this.audio.load();
-    this.audio.play().catch(function() { });
+    this.audio.play().catch(function(e) { console.log(e); });
 
-    let msg = {'ms_audio': getBestAudioType()};
+    let msg = {"ms_audio": getBestAudioType()};
     this.media_controller.send(msg);
+    this.media_controller.ws_conn.binaryType = 'arraybuffer';
 
     return true;
   }
@@ -156,7 +158,7 @@ export default class MSAudio {
       this.buffer = null;
 
     } catch(e) {
-      console.log("Error Closing: " + e);
+      console.log("Error Closing mediasource: " + e);
     }
     this.mediasource = null;
 
@@ -166,9 +168,8 @@ export default class MSAudio {
       }
       this.audio = null;
     } catch (e) {
-      console.log("Error Closing: " + e);
+      console.log("Error Closing audio : " + e);
     }
-
   }
 
   mergeBuffers() {
@@ -242,28 +243,22 @@ export default class MSAudio {
   }
 
   queue(buffer) {
-
-    new Response(buffer).arrayBuffer()
-      .then(function (buffer) {
-        buffer = new Uint8Array(buffer);
-        this.buffQ.push(buffer);
-        this.buffSize += buffer.length;
-        if (this.allowAppend) {
-          this.updateNext();
-        }
-      }.bind(this));
+    buffer = new Uint8Array(buffer);
+    this.buffQ.push(buffer);
+    this.buffSize += buffer.length;
+    if (this.allowAppend) {
+      this.updateNext();
+    }
   }
 
   handleMessage(data) {
-    if (this.errCount == 0) {
-      this.queue(data);
-    }
+    if (this.errCount < 10) {
 
+      this.queue(data);
+    } else {
+      console.log('too much error');
+    }
     return true;
   }
 
 };
-
-
-
-

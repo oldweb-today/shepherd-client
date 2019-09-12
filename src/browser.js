@@ -201,7 +201,7 @@ export default function CBrowser(reqid, target_div, init_params) {
     if (init_params.webrtc) {
       audioType = 'webrtc';
     } else {
-      audioType = getBestAudioType();
+      audioType = null;
     }
 
     if (!audioType) {
@@ -557,6 +557,10 @@ export default function CBrowser(reqid, target_div, init_params) {
     if (controller) {
       // cancel fetch requests
       controller.abort();
+    }
+
+    if (window.mediaController) {
+      window.mediaController.stop();
     }
 
     // stop audio plugin
