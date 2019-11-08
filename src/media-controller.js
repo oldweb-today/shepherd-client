@@ -58,13 +58,8 @@ export default class MediaController {
   }
 
   allowWebRTC(formats) {
-    if (formats.includes("VP8") || formats.includes("H264")) {
-      if( navigator.userAgent.toLowerCase().indexOf('firefox') > -1 ){
-        return true
-      }
-      if( navigator.userAgent.toLowerCase().indexOf('chrom') > -1 ){
-        return true
-      }
+    if (formats && (formats.includes("VP8") || formats.includes("H264"))) {
+      return true;
     }
     return false;
   }
