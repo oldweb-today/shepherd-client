@@ -14,6 +14,9 @@ export default class MediaController {
     this.ws_conn;
     this.webrtc_video_formats;
 
+    this.webrtc = data.webrtc;
+    this.webrtc_video = data.webrtc_video;
+
     this.lock_audio = data['lock_audio'];
 
     this.connectToServer();
@@ -57,18 +60,22 @@ export default class MediaController {
     window.onbeforeunload = this.close.bind(this);
   }
 
-  allowWebRTC(formats) {
-    if (formats && (formats.includes("VP8") || formats.includes("H264"))) {
-      return true;
+  webrtcInitOptions(formats) {
+    if (!this.webrtc) {
+      return {"webrtc": false};
     }
-    return false;
-  }
 
-  determineWebRtcFormat() {
-    determineVideoFormats().then((formats) => {
-      this.webrtc_video_format = formats;
-      this.requestVncConnection();
-    });
+    if (this.webrtc_video && formats) {
+      if (typeof(this.webrtc_video) === "string") {
+        formats.unshift(this.webrtc_video);
+      }
+
+      if (formats.includes("VP8") || formats.includes("H264")) {
+        return {"webrtc": true, "webrtc_video": formats}
+      }
+    }
+
+    return {"webrtc": true};
   }
 
   unlockAudio() {
@@ -78,22 +85,17 @@ export default class MediaController {
     }
   }
 
-  requestVncConnection() {
+  async initConnection() {
+    const formats = await determineVideoFormats();
+    const message = this.webrtcInitOptions(formats);
 
-    let message = {};
-    let webrtc = this.allowWebRTC(this.webrtc_video_format);
+    this.webrtc_video_formats = formats;
 
-    if (webrtc) {
-      message['webrtc'] = webrtc;
-      message['webrtc_video'] = this.webrtc_video_format;
-
-    } else {
-      message['webrtc'] = false;
-    }
+    console.log(message);
     this.send(message);
 
     // instantiate right plugins
-    if (webrtc) {
+    if (message.webrtc) {
       window.mediaPlugin = new WebRTC(this.target, 1, this, this.lock_audio);
     } else {
       let audio_format = getBestAudioType();
@@ -167,7 +169,7 @@ export default class MediaController {
     switch (data) {
       case "HELLO":
         this.setStatus("Registered with server, determine which protocol to use");
-        this.determineWebRtcFormat();
+        this.initConnection();
         return;
       default:
         if (event.data.startsWith("ERROR")) {

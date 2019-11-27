@@ -29,7 +29,25 @@ export default class WebRTC {
     return this.peer_id;
   }
 
+  initIceServers(username, password) {
+    const stun = "stun:stun.l.google.com:19302";
+    const hostname = window.location.hostname;
+    const port = window.location.protocol === "https:" ? 443 : 33478;
+
+    const iceServers = [
+      {'urls': stun},
+      {"urls":[`turn:${hostname}:${port}?transport=udp`,
+               `turn:${hostname}:${port}?transport=tcp`],
+       "username": username,
+       "credential": password}
+    ];
+
+    return {'iceTransportPolicy': 'relay', 'iceServers': iceServers};
+  }
+
   onIncomingConfiguration(msg) {
+    msg = this.initIceServers(msg.username, msg.password);
+
     if (this.debug) {
       console.log("Create peerConnection with configuration" + JSON.stringify(msg));
     }
@@ -88,7 +106,7 @@ export default class WebRTC {
       } else if (msg.ice != null) {
         this.onIncomingICE(msg.ice);
         return true;
-      } else if (msg.iceServers != null) {
+      } else if (msg.username && msg.password) {
         this.onIncomingConfiguration(msg);
         return true;
       }
@@ -104,6 +122,8 @@ export default class WebRTC {
     this.lock_audio = false;
     if (this.audio_element != null) {
       this.audio_element.muted = false;
+      console.log(" paused: " + this.audio_element.paused);
+      this.audio_element.play().catch((err) => this.setError("unlock audio_element.play() error: " + err));
     }
     if (this.video_element != null) {
       this.video_element.muted = false;
@@ -189,7 +209,7 @@ export default class WebRTC {
 
       this.audio_element.srcObject = event.streams[0];
 
-      this.audio_element.play().catch((err) => this.setError("audio_element.play() error: " + err));
+      this.audio_element.play().catch((err) => this.mediaPlayError(err, this.audio_element, "audio_element.play()"));
 
     }
 
@@ -235,17 +255,17 @@ export default class WebRTC {
 
       var video = this.video_element;
 
-      this.video_element.play().catch((err) => {
-        if (err.name === 'NotAllowedError') {
-          video.muted = true;
-          document.body.addEventListener("click", () => {
-            video.muted = false;
-          }, { once: true });
-          video.play().catch((err) => this.setError("video_element.play() error: " + err));
-        } else {
-          this.setError("video_element.play() error: " + err);
-        }
-      });
+      this.video_element.play().catch((err) => this.mediaPlayError(err, this.video_element, "video_element.play()"));
+    }
+  }
+
+  mediaPlayError(err, elem, msg) {
+    if (err.name === 'NotAllowedError') {
+      elem.muted = true;
+      document.body.addEventListener("click", () => this.unlockAudio());
+      elem.play().catch((err) => this.setError(msg + " muted error: " + err));
+    } else {
+      this.setError(msg + " error: " + err);
     }
   }
 };

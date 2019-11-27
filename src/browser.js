@@ -297,7 +297,9 @@ export default function CBrowser(reqid, target_div, init_params) {
 
       let media_params = {"ports":ports,
         "proxy_ws":init_params.proxy_ws,
-        "lock_audio": (init_params.audio == "wait_for_click")
+        "lock_audio": (init_params.audio == "wait_for_click"),
+        "webrtc": init_params.webrtc,
+        "webrtc_video": init_params.webrtc_video
       };
       window.mediaController = new MediaController(targetDivNode, media_params);
 
