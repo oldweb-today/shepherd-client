@@ -173,7 +173,7 @@ export default function CBrowser(reqid, target_div, init_params) {
     }
 
     msgdiv().innerHTML = msg;
-    msgdiv().style.display = 'block';
+    msgdiv().style.display = '';
 
     // calculate dimensions
     const bcr = targetDivNode.getBoundingClientRect();
@@ -265,7 +265,7 @@ export default function CBrowser(reqid, target_div, init_params) {
 
         if (!err || err.message != 404) {
           msgdiv().innerHTML = 'Reconnecting to Remote Browser...';
-          msgdiv().style.display = 'block';
+          msgdiv().style.display = '';
 
           if (retryCount++ < maxRetry) {
             timers.push(setTimeout(init_browser, 1000));
@@ -278,13 +278,13 @@ export default function CBrowser(reqid, target_div, init_params) {
           init_params.on_event('error');
         } else {
           msgdiv().innerHTML = 'Remote Browser Expired... Please try again...';
-          msgdiv().style.display = 'block';
+          msgdiv().style.display = '';
         }
       });
   }
 
   function handle_browser_response(data) {
-    
+
     if (data.containers && data.containers.xserver && data.containers.xserver.ports) {
       let ports = data.containers.xserver.ports;
 
@@ -427,7 +427,7 @@ export default function CBrowser(reqid, target_div, init_params) {
       }
 
       connect = function () {
-        canvas().style.display = 'block';
+        canvas().style.display = '';
 
         if (init_params.fill_window) {
           canvas().focus();
@@ -599,6 +599,3 @@ export default function CBrowser(reqid, target_div, init_params) {
     "init_clipboard": init_clipboard
    }
 }
-
-
-
