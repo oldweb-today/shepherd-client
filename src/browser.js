@@ -562,7 +562,7 @@ export default function CBrowser(reqid, target_div, init_params) {
     }
 
     if (window.mediaController) {
-      window.mediaController.stop();
+      window.mediaController.close();
     }
 
     // stop audio plugin
