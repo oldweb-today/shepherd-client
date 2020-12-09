@@ -105,7 +105,7 @@ export default class MediaController {
   }
 
   close () {
-    this.disconnectWebsocket();
+    this.disconnectWebsocket(1000);
     if (window.mediaPlugin) {
       window.mediaPlugin.close();
       window.mediaPlugin = null;
@@ -114,6 +114,11 @@ export default class MediaController {
 
   onServerClose(event) {
     this.setStatus('Disconnected from server with code=' + event.code + ' reason=' + event.reason);
+
+    // healthy close
+    if (event.code === 1000) {
+      return;
+    }
 
     this.disconnectWebsocket();
 
@@ -128,10 +133,10 @@ export default class MediaController {
     }
   }
 
-  disconnectWebsocket() {
+  disconnectWebsocket(code) {
     if (this.ws_conn) {
       this.setStatus("disconnect websocket");
-      this.ws_conn.close();
+      this.ws_conn.close(code);
     }
   }
 
