@@ -32,7 +32,7 @@ export default class WebRTC {
   initIceServers(username, password) {
     const stun = "stun:stun.l.google.com:19302";
     const hostname = window.location.hostname;
-    const port = window.location.protocol === "https:" ? 443 : 33478;
+    const port = 33478;
 
     const iceServers = [
       {'urls': stun},
@@ -305,4 +305,3 @@ function determineVideoFormats() {
 
   });
 }
-
