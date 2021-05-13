@@ -194,9 +194,6 @@ export default function CBrowser(reqid, target_div, init_params) {
 
     let width = Math.max(w, min_width);
     let height = Math.max(h, min_height);
-    width = parseInt(width / 8) * 8;
-    height = parseInt(height / 8) * 8;
-    //req_params['reqid'] = reqid;
 
     if (init_params.webrtc) {
       audioType = 'webrtc';
